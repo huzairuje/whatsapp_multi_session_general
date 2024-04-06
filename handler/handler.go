@@ -6,17 +6,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
 	"whatsapp_multi_session_general/commandhandler"
 
 	"github.com/gin-gonic/gin"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
-	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
+type Handler struct {
+	CommandHandler commandhandler.CommandHandler
+}
+
+func NewHandler(commandhandler commandhandler.CommandHandler) Handler {
+	return Handler{
+		CommandHandler: commandhandler,
+	}
+}
+
 // ServeSendText handles sending text messages
-func ServeSendText(c *gin.Context) {
+func (h Handler) ServeSendText(c *gin.Context) {
 	// Get query parameters
 	senderString := c.Query("sender")
 
@@ -43,7 +50,7 @@ func ServeSendText(c *gin.Context) {
 			return
 		}
 
-		msgID, err := commandhandler.HandleSendNewTextMessage(senderJidTypes, msgBody.Message, msgBody.Recipient)
+		msgID, err := h.CommandHandler.HandleSendNewTextMessage(senderJidTypes, msgBody.Message, msgBody.Recipient)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 			return
@@ -57,7 +64,7 @@ func ServeSendText(c *gin.Context) {
 }
 
 // ServeSendTextBulk handles sending bulk text messages
-func ServeSendTextBulk(c *gin.Context) {
+func (h Handler) ServeSendTextBulk(c *gin.Context) {
 	if c.Request.Method == "OPTIONS" {
 		c.Status(http.StatusOK)
 		return
@@ -88,7 +95,7 @@ func ServeSendTextBulk(c *gin.Context) {
 			return
 		}
 
-		commandhandler.HandleSendNewTextMessageBulk(senderJidTypes, msgBody.Message, msgBody.Recipients)
+		h.CommandHandler.HandleSendNewTextMessageBulk(senderJidTypes, msgBody.Message, msgBody.Recipients)
 
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 		return
@@ -98,7 +105,7 @@ func ServeSendTextBulk(c *gin.Context) {
 }
 
 // ServeStatus returns the current status of the client
-func ServeStatus(c *gin.Context) {
+func (h Handler) ServeStatus(c *gin.Context) {
 	if c.Request.Method == "OPTIONS" {
 		c.Status(http.StatusOK)
 		return
@@ -135,8 +142,20 @@ func ServeStatus(c *gin.Context) {
 	c.JSON(http.StatusServiceUnavailable, gin.H{"message": "gagal kirim, tolong hit endpoint untuk melakukan qrcode"})
 }
 
+// ServeAllDevices checks user status
+func (h Handler) ServeAllDevices(c *gin.Context) {
+	if c.Request.Method == "OPTIONS" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	response := h.CommandHandler.GetAllDevices()
+	c.JSON(http.StatusOK, response)
+	return
+}
+
 // ServeCheckUser checks user status
-func ServeCheckUser(c *gin.Context) {
+func (h Handler) ServeCheckUser(c *gin.Context) {
 	if c.Request.Method == "OPTIONS" {
 		c.Status(http.StatusOK)
 		return
@@ -166,7 +185,7 @@ func ServeCheckUser(c *gin.Context) {
 			return
 		}
 
-		response := commandhandler.NewHandleCheckUser(senderJidTypes, msgBody.Recipients)
+		response := h.CommandHandler.NewHandleCheckUser(senderJidTypes, msgBody.Recipients)
 
 		c.JSON(http.StatusOK, response)
 		return
@@ -174,7 +193,7 @@ func ServeCheckUser(c *gin.Context) {
 	c.JSON(http.StatusServiceUnavailable, gin.H{"message": "gagal kirim, tolong hit endpoint untuk melakukan qrcode kembali"})
 }
 
-func NewUploadHandler(c *gin.Context) {
+func (h Handler) NewUploadHandler(c *gin.Context) {
 	// Get query parameters
 	senderString := c.Query("sender")
 	if senderString == "" {
@@ -337,15 +356,8 @@ func handleError(w http.ResponseWriter, statusCode int, message string, err erro
 	http.Error(w, message, statusCode)
 }
 
-func HandleQR(c *gin.Context) {
-	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New("sqlite3", "file:examplestore.db?_foreign_keys=on", dbLog)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
-		return
-	}
-
-	devices, err := container.GetAllDevices()
+func (h Handler) HandleQR(c *gin.Context) {
+	devices, err := h.CommandHandler.Container.GetAllDevices()
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
@@ -363,7 +375,7 @@ func HandleQR(c *gin.Context) {
 
 	if len(devices) > 0 {
 		// Get specific QR code
-		base64qrcode, err := commandhandler.GetSpecificQR(context.Background(), commandhandler.Clients, senderJidTypes, container)
+		base64qrcode, err := h.CommandHandler.GetSpecificQR(context.Background(), commandhandler.Clients, senderJidTypes)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 			return
@@ -379,7 +391,7 @@ func HandleQR(c *gin.Context) {
 
 	} else {
 		// Get specific QR code
-		base64qrcode, err := commandhandler.GetSingleQR(context.Background(), commandhandler.Clients, senderJidTypes, container)
+		base64qrcode, err := h.CommandHandler.GetSingleQR(context.Background(), commandhandler.Clients, senderJidTypes)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 			return
@@ -395,7 +407,7 @@ func HandleQR(c *gin.Context) {
 }
 
 // Logout checks user status
-func Logout(c *gin.Context) {
+func (h Handler) Logout(c *gin.Context) {
 	if c.Request.Method == "OPTIONS" {
 		c.Status(http.StatusOK)
 		return

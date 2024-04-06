@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"whatsapp_multi_session_general/primitive"
 
 	"github.com/mdp/qrterminal/v3"
 	"github.com/skip2/go-qrcode"
@@ -21,15 +22,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
-)
-
-const (
-	StatusSend      = iota + 1
-	StatusDelivered = StatusSend + 1
-	StatusRead      = StatusDelivered + 1
-
-	NotFound = "not found"
-	Deleted  = "token was delete"
 )
 
 var (
@@ -45,7 +37,17 @@ type Message struct {
 	FileName  string
 }
 
-func NewHandleCheckUser(sender types.JID, args []string) (response []types.IsOnWhatsAppResponse) {
+type CommandHandler struct {
+	Container *sqlstore.Container
+}
+
+func NewCommandHandler(container *sqlstore.Container) CommandHandler {
+	return CommandHandler{
+		Container: container,
+	}
+}
+
+func (ch CommandHandler) NewHandleCheckUser(sender types.JID, args []string) (response []types.IsOnWhatsAppResponse) {
 	fmt.Printf("Checking users: %v", args)
 	if len(args) < 1 {
 		fmt.Errorf("Usage: checkuser <phone numbers...>")
@@ -70,7 +72,7 @@ func NewHandleCheckUser(sender types.JID, args []string) (response []types.IsOnW
 	return response
 }
 
-func HandleSendNewTextMessage(sender types.JID, textMsg string, jid string) (messageID string, err error) {
+func (ch CommandHandler) HandleSendNewTextMessage(sender types.JID, textMsg string, jid string) (messageID string, err error) {
 	recipient, ok := parseJID(jid)
 	if !ok {
 		return
@@ -101,7 +103,7 @@ func HandleSendNewTextMessage(sender types.JID, textMsg string, jid string) (mes
 	return resp.ID, nil
 }
 
-func HandleSendNewTextMessageBulk(sender types.JID, textMsg string, jids []string) {
+func (ch CommandHandler) HandleSendNewTextMessageBulk(sender types.JID, textMsg string, jids []string) {
 	var wg sync.WaitGroup
 	for _, jid := range jids {
 		wg.Add(1)
@@ -131,8 +133,8 @@ func HandleSendNewTextMessageBulk(sender types.JID, textMsg string, jids []strin
 	wg.Wait()
 }
 
-func GetSingleQR(ctx context.Context, clients map[string]*whatsmeow.Client, senderJidTypes types.JID, container *sqlstore.Container) (string, error) {
-	device, err := container.GetFirstDevice()
+func (ch CommandHandler) GetSingleQR(ctx context.Context, clients map[string]*whatsmeow.Client, senderJidTypes types.JID) (string, error) {
+	device, err := ch.Container.GetFirstDevice()
 	if err != nil {
 		panic(err)
 	}
@@ -184,8 +186,8 @@ func GetSingleQR(ctx context.Context, clients map[string]*whatsmeow.Client, send
 	return "", nil
 }
 
-func GetSpecificQR(ctx context.Context, clients map[string]*whatsmeow.Client, jid types.JID, container *sqlstore.Container) (string, error) {
-	devices, err := container.GetAllDevices()
+func (ch CommandHandler) GetSpecificQR(ctx context.Context, clients map[string]*whatsmeow.Client, jid types.JID) (string, error) {
+	devices, err := ch.Container.GetAllDevices()
 	if err != nil {
 		panic(err)
 	}
@@ -203,7 +205,7 @@ func GetSpecificQR(ctx context.Context, clients map[string]*whatsmeow.Client, ji
 	}
 
 	if device == nil || device.ID.User == "" {
-		device = container.NewDevice()
+		device = ch.Container.NewDevice()
 	}
 
 	clientLog := waLog.Stdout("Client", "DEBUG", true)
@@ -619,15 +621,8 @@ func generateQRCode(code string) ([]byte, error) {
 	return qrImage, nil
 }
 
-func AutoLogin() {
-	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New("sqlite3", "file:examplestore.db?_foreign_keys=on", dbLog)
-	if err != nil {
-		fmt.Errorf("err sqlstore.New : %v ", err)
-		return
-	}
-
-	devices, err := container.GetAllDevices()
+func (ch CommandHandler) AutoLogin() {
+	devices, err := ch.Container.GetAllDevices()
 	if err != nil {
 		fmt.Errorf("err sqlstore.New : %v ", err)
 		return
@@ -659,15 +654,8 @@ func AutoLogin() {
 	return
 }
 
-func AutoDisconnect() {
-	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New("sqlite3", "file:examplestore.db?_foreign_keys=on", dbLog)
-	if err != nil {
-		fmt.Errorf("err sqlstore.New : %v ", err)
-		return
-	}
-
-	devices, err := container.GetAllDevices()
+func (ch CommandHandler) AutoDisconnect() {
+	devices, err := ch.Container.GetAllDevices()
 	if err != nil {
 		fmt.Errorf("err sqlstore.New : %v ", err)
 		return
@@ -694,15 +682,8 @@ func AutoDisconnect() {
 	return
 }
 
-func AutoLogOut() {
-	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New("sqlite3", "file:examplestore.db?_foreign_keys=on", dbLog)
-	if err != nil {
-		fmt.Errorf("err sqlstore.New : %v ", err)
-		return
-	}
-
-	devices, err := container.GetAllDevices()
+func (ch CommandHandler) AutoLogOut() {
+	devices, err := ch.Container.GetAllDevices()
 	if err != nil {
 		fmt.Errorf("err sqlstore.New : %v ", err)
 		return
@@ -730,4 +711,29 @@ func AutoLogOut() {
 		}
 	}
 	return
+}
+
+func (ch CommandHandler) GetAllDevices() (response []primitive.Devices) {
+	container, err := ch.Container.GetAllDevices()
+	if err != nil {
+		fmt.Errorf("Failed to check if users are on WhatsApp: %v", err)
+		return nil
+	}
+
+	if len(container) > 0 {
+		for _, item := range container {
+			newItem := primitive.Devices{
+				PushName:   item.PushName,
+				Platform:   item.Platform,
+				User:       item.ID.User,
+				Server:     item.ID.Server,
+				IsLoggedIn: Clients[item.ID.User].IsLoggedIn(),
+			}
+			response = append(response, newItem)
+		}
+	} else {
+		emptyResp := make([]primitive.Devices, 0)
+		response = emptyResp
+	}
+	return response
 }

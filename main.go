@@ -13,7 +13,6 @@ import (
 	"time"
 	"whatsapp_multi_session_general/boot"
 	"whatsapp_multi_session_general/config"
-	"whatsapp_multi_session_general/handler"
 	"whatsapp_multi_session_general/primitive"
 
 	"github.com/gin-gonic/gin"
@@ -26,9 +25,6 @@ func main() {
 	flag.StringVar(&config.Env, "env", "local", "A config name that used by server")
 	flag.Parse()
 
-	//initiate
-	boot.Setup()
-
 	// Create a new Gin router
 	router := gin.Default()
 
@@ -40,14 +36,8 @@ func main() {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Method Not Allowed"})
 	})
 
-	// Define routes
-	router.GET("/qr", handler.HandleQR)
-	router.POST("/send", handler.ServeSendText)
-	router.POST("/send-bulk", handler.ServeSendTextBulk)
-	router.GET("/status", handler.ServeStatus)
-	router.POST("/check-user", handler.ServeCheckUser)
-	router.POST("/logout", handler.Logout)
-	router.POST("/upload", handler.NewUploadHandler)
+	//initiate
+	appSetupHandler := boot.Setup(router)
 
 	port := fmt.Sprintf(":%v", config.Conf.Port)
 	if port == "" {
@@ -57,7 +47,7 @@ func main() {
 	log.Printf("Server running on port %s", port)
 	serve := &http.Server{
 		Addr:    port,
-		Handler: router,
+		Handler: appSetupHandler,
 	}
 
 	// Start server
