@@ -2,6 +2,7 @@ package boot
 
 import (
 	"fmt"
+	"whatsapp_multi_session_general/cronjob"
 
 	"whatsapp_multi_session_general/commandhandler"
 	"whatsapp_multi_session_general/config"
@@ -40,6 +41,13 @@ func Setup(r *gin.Engine) *gin.Engine {
 
 	router := routers.NewRoutes(newHandler)
 	appRoutes := router.V1(r)
+
+	//initiate cronjob
+	cronJobs := cronjob.NewCronJobs(cmdHandler)
+	go func() {
+		// listener on trigger start up
+		cronJobs.Run()
+	}()
 
 	return appRoutes
 }

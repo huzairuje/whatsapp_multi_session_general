@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
 	"whatsapp_multi_session_general/commandhandler"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +20,37 @@ func NewHandler(commandhandler commandhandler.CommandHandler) Handler {
 	return Handler{
 		CommandHandler: commandhandler,
 	}
+}
+
+// ServeSendPresence handles sending text messages
+func (h Handler) ServeSendPresence(c *gin.Context) {
+	// Get query parameters
+	senderString := c.Query("sender")
+
+	if senderString == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "sender seharusnya diisi dengan nomor yang valid"})
+		return
+	}
+	senderJidTypes := types.NewJID(senderString, types.DefaultUserServer)
+
+	clientSpecificUser := commandhandler.Clients[senderJidTypes.User]
+	if clientSpecificUser == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "gagal kirim"})
+		return
+	}
+
+	if clientSpecificUser.IsLoggedIn() {
+		err := h.CommandHandler.NewHandleSendPresence(senderJidTypes)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "success", "send_presence": http.StatusText(http.StatusOK)})
+		return
+	}
+
+	c.JSON(http.StatusServiceUnavailable, gin.H{"message": "gagal kirim, tolong hit endpoint untuk melakukan qrcode"})
 }
 
 // ServeSendText handles sending text messages

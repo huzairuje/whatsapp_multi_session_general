@@ -19,6 +19,7 @@ func NewRoutes(handler handler.Handler) Router {
 func (r Router) V1(router *gin.Engine) *gin.Engine {
 	// Define routers
 	router.GET("/qr", r.Handler.HandleQR)
+	router.POST("/presence", r.Handler.ServeSendPresence)
 	router.POST("/send", r.Handler.ServeSendText)
 	router.POST("/send-bulk", r.Handler.ServeSendTextBulk)
 	router.GET("/status", r.Handler.ServeStatus)

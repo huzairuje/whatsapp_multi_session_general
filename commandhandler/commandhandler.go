@@ -48,6 +48,16 @@ func NewCommandHandler(container *sqlstore.Container) CommandHandler {
 	}
 }
 
+func (ch CommandHandler) NewHandleSendPresence(sender types.JID) (err error) {
+	err = Clients[sender.User].SendPresence(types.PresenceAvailable)
+	if err != nil {
+		fmt.Errorf("Error sending presence: %v", err)
+		return
+	}
+	Clients[sender.User].AddEventHandler(EventHandler)
+	return nil
+}
+
 func (ch CommandHandler) NewHandleCheckUser(sender types.JID, args []string) (response []types.IsOnWhatsAppResponse) {
 	fmt.Printf("Checking users: %v", args)
 	if len(args) < 1 {
@@ -656,24 +666,14 @@ func (ch CommandHandler) AutoLogin() {
 }
 
 func (ch CommandHandler) AutoDisconnect() {
-	devices, err := ch.Container.GetAllDevices()
-	if err != nil {
-		fmt.Errorf("err sqlstore.New : %v ", err)
-		return
-	}
+	devices := Clients
 
 	if len(devices) > 0 {
 		for _, val := range devices {
-			if val.ID.User != "" {
-				device := val
-				//set new client
-				clientLog := waLog.Stdout("Client", "DEBUG", true)
-				client := whatsmeow.NewClient(device, clientLog)
-				client.AddEventHandler(EventHandler)
-
+			if val.Store.ID.User != "" {
 				// Connect the client synchronously
-				if client.Store.ID != nil {
-					client.Disconnect()
+				if val.Store.ID != nil {
+					val.Disconnect()
 				}
 			} else {
 				continue
@@ -684,24 +684,14 @@ func (ch CommandHandler) AutoDisconnect() {
 }
 
 func (ch CommandHandler) AutoLogOut() {
-	devices, err := ch.Container.GetAllDevices()
-	if err != nil {
-		fmt.Errorf("err sqlstore.New : %v ", err)
-		return
-	}
+	devices := Clients
 
 	if len(devices) > 0 {
 		for _, val := range devices {
-			if val.ID.User != "" {
-				device := val
-				//set new client
-				clientLog := waLog.Stdout("Client", "DEBUG", true)
-				client := whatsmeow.NewClient(device, clientLog)
-				client.AddEventHandler(EventHandler)
-
+			if val.Store.ID.User != "" {
 				// Connect the client synchronously
-				if client.Store.ID != nil {
-					err := client.Logout()
+				if val.Store.ID != nil {
+					err := val.Logout()
 					if err != nil {
 						fmt.Errorf("err sqlstore.New : %v ", err)
 					}

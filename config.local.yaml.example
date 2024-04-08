@@ -1,0 +1,12 @@
+env: local
+port: 1234
+autoLogout: false
+autoDisconnect: false
+startUp:
+  enableAutoLogin: true
+shutDown:
+  enableAutoLogOut: false
+cronjob:
+  autoPresence:
+    enable: true
+    cronJobSchedule: "0 0 * * 0"

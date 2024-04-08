@@ -31,6 +31,7 @@ type Config struct {
 	ShutDown       ShutDown `mapstructure:"shutDown"`
 	AutoLogout     bool     `mapstructure:"autoLogout"`
 	AutoDisconnect bool     `mapstructure:"autoDisconnect"`
+	Cronjob        Cronjob  `mapstructure:"cronjob"`
 }
 
 type StartUp struct {
@@ -39,4 +40,13 @@ type StartUp struct {
 
 type ShutDown struct {
 	EnableAutoShutDown bool `json:"enableAutoLogOut"`
+}
+
+type Cronjob struct {
+	AutoPresence AutoPresence `mapstructure:"autoPresence"`
+}
+
+type AutoPresence struct {
+	Enable          bool   `mapstructure:"enable"`
+	CronJobSchedule string `mapstructure:"cronJobSchedule"`
 }
