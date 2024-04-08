@@ -93,6 +93,12 @@ func (ch CommandHandler) HandleSendNewTextMessage(sender types.JID, textMsg stri
 		Conversation: proto.String(textMsg),
 	}
 
+	err = Clients[sender.User].SendPresence(types.PresenceAvailable)
+	if err != nil {
+		fmt.Errorf("Error sending presence: %v", err)
+		return
+	}
+
 	fmt.Printf("Sending message to %s: %s", recipient, msg.GetConversation())
 
 	//set message id from std lib whatsmeo
@@ -107,6 +113,12 @@ func (ch CommandHandler) HandleSendNewTextMessage(sender types.JID, textMsg stri
 	}
 
 	Clients[sender.User].AddEventHandler(EventHandler)
+
+	err = Clients[sender.User].MarkRead([]types.MessageID{resp.ID}, time.Now(), recipient, sender)
+	if err != nil {
+		fmt.Errorf("Error sending MarkRead: %v", err)
+		return
+	}
 
 	fmt.Printf("response messageID is : %v ", resp.ID)
 
@@ -126,15 +138,27 @@ func (ch CommandHandler) HandleSendNewTextMessageBulk(sender types.JID, textMsg 
 				return
 			}
 
+			err := Clients[sender.User].SendPresence(types.PresenceAvailable)
+			if err != nil {
+				fmt.Errorf("Error sending presence: %v", err)
+				return
+			}
+
 			msg := &waProto.Message{
 				Conversation: proto.String(textMsg),
 			}
 
 			fmt.Printf("Sending message to %s: %s", recipient, msg.GetConversation())
 
-			_, err := Clients[sender.User].SendMessage(context.Background(), recipient, msg)
+			resp, err := Clients[sender.User].SendMessage(context.Background(), recipient, msg)
 			if err != nil {
 				fmt.Errorf("Error sending message: %v", err)
+				return
+			}
+
+			err = Clients[sender.User].MarkRead([]types.MessageID{resp.ID}, time.Now(), recipient, sender)
+			if err != nil {
+				fmt.Errorf("Error sending MarkRead: %v", err)
 				return
 			}
 
@@ -364,6 +388,12 @@ func NewHandleSendImage(sender types.JID, JIDS []string, data []byte, captionMsg
 				return
 			}
 
+			err := Clients[sender.User].SendPresence(types.PresenceAvailable)
+			if err != nil {
+				fmt.Errorf("Error sending presence: %v", err)
+				return
+			}
+
 			uploaded, err := Clients[sender.User].Upload(context.Background(), data, whatsmeow.MediaImage)
 			if err != nil {
 				mu.Lock()
@@ -378,6 +408,12 @@ func NewHandleSendImage(sender types.JID, JIDS []string, data []byte, captionMsg
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("error sending image message: %v", err))
 				mu.Unlock()
+				return
+			}
+
+			err = Clients[sender.User].MarkRead([]types.MessageID{resp.ID}, time.Now(), recipient, sender)
+			if err != nil {
+				fmt.Errorf("Error sending MarkRead: %v", err)
 				return
 			}
 
@@ -419,6 +455,12 @@ func NewHandleSendDocument(sender types.JID, JID []string, fileName string, data
 				return
 			}
 
+			err := Clients[sender.User].SendPresence(types.PresenceAvailable)
+			if err != nil {
+				fmt.Errorf("Error sending presence: %v", err)
+				return
+			}
+
 			uploaded, err := Clients[sender.User].Upload(context.Background(), data, whatsmeow.MediaDocument)
 			if err != nil {
 				mu.Lock()
@@ -433,6 +475,12 @@ func NewHandleSendDocument(sender types.JID, JID []string, fileName string, data
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("error sending document message: %v", err))
 				mu.Unlock()
+				return
+			}
+
+			err = Clients[sender.User].MarkRead([]types.MessageID{resp.ID}, time.Now(), recipient, sender)
+			if err != nil {
+				fmt.Errorf("Error sending MarkRead: %v", err)
 				return
 			}
 
@@ -474,6 +522,12 @@ func NewHandleSendVideo(sender types.JID, JID []string, data []byte, captionMsg 
 				return
 			}
 
+			err := Clients[sender.User].SendPresence(types.PresenceAvailable)
+			if err != nil {
+				fmt.Errorf("Error sending presence: %v", err)
+				return
+			}
+
 			uploaded, err := Clients[sender.User].Upload(context.Background(), data, whatsmeow.MediaImage)
 			if err != nil {
 				mu.Lock()
@@ -488,6 +542,12 @@ func NewHandleSendVideo(sender types.JID, JID []string, data []byte, captionMsg 
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("error sending image message: %v", err))
 				mu.Unlock()
+				return
+			}
+
+			err = Clients[sender.User].MarkRead([]types.MessageID{resp.ID}, time.Now(), recipient, sender)
+			if err != nil {
+				fmt.Errorf("Error sending MarkRead: %v", err)
 				return
 			}
 
@@ -529,6 +589,12 @@ func NewHandleSendAudio(sender types.JID, JID []string, data []byte) ([]Message,
 				return
 			}
 
+			err := Clients[sender.User].SendPresence(types.PresenceAvailable)
+			if err != nil {
+				fmt.Errorf("Error sending presence: %v", err)
+				return
+			}
+
 			uploaded, err := Clients[sender.User].Upload(context.Background(), data, whatsmeow.MediaImage)
 			if err != nil {
 				mu.Lock()
@@ -543,6 +609,12 @@ func NewHandleSendAudio(sender types.JID, JID []string, data []byte) ([]Message,
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("error sending image message: %v", err))
 				mu.Unlock()
+				return
+			}
+
+			err = Clients[sender.User].MarkRead([]types.MessageID{resp.ID}, time.Now(), recipient, sender)
+			if err != nil {
+				fmt.Errorf("Error sending MarkRead: %v", err)
 				return
 			}
 
