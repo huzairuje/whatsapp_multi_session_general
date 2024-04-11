@@ -195,14 +195,15 @@ func (ch CommandHandler) GetSingleQR(ctx context.Context, clients map[string]*wh
 			if evt.Event == "code" {
 				fmt.Println("QR code:", evt.Code)
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
+				image, errGen := generateQRCode(evt.Code)
+				if errGen != nil {
+					// Log the error for debugging
+					fmt.Printf("Error generating QR code : %v", errGen)
+					return "", errGen
+				}
 				// Add the client to the map
 				clients[senderJidTypes.User] = client
-				image, errGenerateCode := generateQRCode(evt.Code)
-				if errGenerateCode != nil {
-					// Log the error for debugging
-					fmt.Println("Error generating QR code:", errGenerateCode)
-					return "", errGenerateCode
-				}
+
 				return string(image), nil
 			} else {
 				fmt.Println("Login event:", evt.Event)
