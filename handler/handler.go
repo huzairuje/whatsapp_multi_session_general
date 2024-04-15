@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"go.mau.fi/whatsmeow/types"
 	"io"
 	"net/http"
 	"whatsapp_multi_session_general/commandhandler"
-
-	"github.com/gin-gonic/gin"
-	"go.mau.fi/whatsmeow/types"
 )
 
 type Handler struct {
@@ -181,6 +180,30 @@ func (h Handler) ServeAllDevices(c *gin.Context) {
 	}
 
 	response := h.CommandHandler.GetAllDevices()
+	c.JSON(http.StatusOK, response)
+	return
+}
+
+// ServeDetailDevices checks user status
+func (h Handler) ServeDetailDevices(c *gin.Context) {
+	if c.Request.Method == "OPTIONS" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	jidStringReq := c.Param("jid")
+	jid, ok := commandhandler.ParseJID(jidStringReq)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid jid request"})
+		return
+	}
+
+	response := h.CommandHandler.GetSingleDevices(jid)
+	if response.User == "" {
+		c.JSON(http.StatusNotFound, gin.H{"message": "your request jid is not found"})
+		return
+	}
+
 	c.JSON(http.StatusOK, response)
 	return
 }
@@ -465,4 +488,53 @@ func (h Handler) Logout(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "success logout"})
+}
+
+// ServeCheckUserSingle checks user status
+func (h Handler) ServeCheckUserSingle(c *gin.Context) {
+	if c.Request.Method == "OPTIONS" {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// Get query parameters
+	senderString := c.Query("sender")
+	if senderString == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "sender should be filled"})
+		return
+	}
+	senderJidTypes := types.NewJID(senderString, types.DefaultUserServer)
+
+	clientSpecificUser := commandhandler.Clients[senderJidTypes.User]
+	if clientSpecificUser == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthorized"})
+		return
+	}
+
+	if clientSpecificUser.IsLoggedIn() {
+		var msgBody struct {
+			Recipient string `json:"recipient" binding:"required"`
+		}
+
+		if err := c.BindJSON(&msgBody); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Error decoding JSON"})
+			return
+		}
+
+		isRecipientValid := commandhandler.ValidatePhoneNumber(msgBody.Recipient)
+		if !isRecipientValid {
+			c.JSON(http.StatusBadRequest, gin.H{"message": `your number recipient is not contains "+"`})
+			return
+		}
+
+		response, err := h.CommandHandler.NewHandleCheckUserSingle(senderJidTypes, msgBody.Recipient)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, response)
+		return
+	}
+	c.JSON(http.StatusServiceUnavailable, gin.H{"message": "gagal kirim, tolong hit endpoint untuk melakukan qrcode kembali"})
 }

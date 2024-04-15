@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
-
 	"whatsapp_multi_session_general/primitive"
 
 	"github.com/mdp/qrterminal/v3"
@@ -84,7 +84,7 @@ func (ch CommandHandler) NewHandleCheckUser(sender types.JID, args []string) (re
 }
 
 func (ch CommandHandler) HandleSendNewTextMessage(sender types.JID, textMsg string, jid string) (messageID string, err error) {
-	recipient, ok := parseJID(jid)
+	recipient, ok := ParseJID(jid)
 	if !ok {
 		return
 	}
@@ -133,7 +133,7 @@ func (ch CommandHandler) HandleSendNewTextMessageBulk(sender types.JID, textMsg 
 		go func(jid string) {
 			defer wg.Done()
 
-			recipient, ok := parseJID(jid)
+			recipient, ok := ParseJID(jid)
 			if !ok {
 				return
 			}
@@ -380,7 +380,7 @@ func NewHandleSendImage(sender types.JID, JIDS []string, data []byte, captionMsg
 		go func(jid string) {
 			defer wg.Done()
 
-			recipient, ok := parseJID(jid)
+			recipient, ok := ParseJID(jid)
 			if !ok {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("invalid JID: %s", jid))
@@ -447,7 +447,7 @@ func NewHandleSendDocument(sender types.JID, JID []string, fileName string, data
 		go func(jid, fileName string) {
 			defer wg.Done()
 
-			recipient, ok := parseJID(jid)
+			recipient, ok := ParseJID(jid)
 			if !ok {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("invalid JID: %s", jid))
@@ -514,7 +514,7 @@ func NewHandleSendVideo(sender types.JID, JID []string, data []byte, captionMsg 
 		go func(jid string) {
 			defer wg.Done()
 
-			recipient, ok := parseJID(jid)
+			recipient, ok := ParseJID(jid)
 			if !ok {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("invalid JID: %s", jid))
@@ -581,7 +581,7 @@ func NewHandleSendAudio(sender types.JID, JID []string, data []byte) ([]Message,
 		go func(jid string) {
 			defer wg.Done()
 
-			recipient, ok := parseJID(jid)
+			recipient, ok := ParseJID(jid)
 			if !ok {
 				mu.Lock()
 				errs = append(errs, fmt.Errorf("invalid JID: %s", jid))
@@ -637,8 +637,8 @@ func NewHandleSendAudio(sender types.JID, JID []string, data []byte) ([]Message,
 	return sliceM, nil
 }
 
-// Parse a JID from a string. If the string starts with a +, it is removed.
-func parseJID(arg string) (types.JID, bool) {
+// ParseJID Parse a JID from a string. If the string starts with a +, it is removed.
+func ParseJID(arg string) (types.JID, bool) {
 	if arg[0] == '+' {
 		arg = arg[1:]
 	}
@@ -655,6 +655,30 @@ func parseJID(arg string) (types.JID, bool) {
 		}
 		return recipient, true
 	}
+}
+
+func (ch CommandHandler) NewHandleCheckUserSingle(sender types.JID, recipient string) (response types.IsOnWhatsAppResponse, err error) {
+	fmt.Printf("Checking users recipient: %v", recipient)
+
+	requestSingleIsOnWhatsapp := []string{recipient}
+	resp, err := Clients[sender.User].IsOnWhatsApp(requestSingleIsOnWhatsapp)
+	if err != nil {
+		fmt.Errorf("Failed to check if users are on WhatsApp: %v", err)
+		return types.IsOnWhatsAppResponse{}, err
+	}
+
+	if len(resp) > 0 {
+		for _, item := range resp {
+			logMessage := fmt.Sprintf("%s: on WhatsApp: %t, JID: %s", item.Query, item.IsIn, item.JID)
+
+			if item.VerifiedName != nil {
+				logMessage += fmt.Sprintf(", business name: %s", item.VerifiedName.Details.GetVerifiedName())
+			}
+			fmt.Printf(logMessage)
+			response = item
+		}
+	}
+	return response, nil
 }
 
 func EventHandler(evt interface{}) {
@@ -799,4 +823,51 @@ func (ch CommandHandler) GetAllDevices() (response []primitive.Devices) {
 		response = emptyResp
 	}
 	return response
+}
+
+func (ch CommandHandler) GetSingleDevices(jid types.JID) (response primitive.Devices) {
+	container, err := ch.Container.GetAllDevices()
+	if err != nil {
+		fmt.Errorf("Failed to check if users are on WhatsApp: %v", err)
+		return primitive.Devices{}
+	}
+
+	if len(container) > 0 {
+		for _, item := range container {
+
+			jidUser := strings.TrimSpace(jid.User)
+			itemIdUser := strings.TrimSpace(item.ID.User)
+
+			if jidUser == itemIdUser {
+				var isLoggedIn bool
+				if Clients[item.ID.User] == nil {
+					isLoggedIn = false
+				} else {
+					isLoggedIn = Clients[item.ID.User].IsLoggedIn()
+				}
+
+				resp := primitive.Devices{
+					PushName:   item.PushName,
+					Platform:   item.Platform,
+					User:       item.ID.User,
+					Server:     item.ID.Server,
+					IsLoggedIn: isLoggedIn,
+				}
+				return resp
+			}
+		}
+	}
+	return response
+}
+
+func ValidatePhoneNumber(phoneNumber string) bool {
+	// Define a regular expression pattern
+	pattern := `^\+[\d\s-]+$` // This pattern requires the phone number to start with '+'
+
+	// Compile the regular expression
+	regex := regexp.MustCompile(pattern)
+
+	// Check if the phone number matches the pattern
+	return regex.MatchString(phoneNumber)
+
 }

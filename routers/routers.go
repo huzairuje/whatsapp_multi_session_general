@@ -24,8 +24,10 @@ func (r Router) V1(router *gin.Engine) *gin.Engine {
 	router.POST("/send-bulk", r.Handler.ServeSendTextBulk)
 	router.GET("/status", r.Handler.ServeStatus)
 	router.POST("/check-user", r.Handler.ServeCheckUser)
+	router.POST("/check-user-single", r.Handler.ServeCheckUserSingle)
 	router.POST("/upload", r.Handler.NewUploadHandler)
 	router.GET("/devices", r.Handler.ServeAllDevices)
+	router.GET("/devices/:jid", r.Handler.ServeDetailDevices)
 	router.POST("/logout", r.Handler.Logout)
 
 	return router
